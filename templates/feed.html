@@ -38,13 +38,84 @@
             padding: 0 1rem;
         }
 
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .filter-bar label {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .filter-btn {
+            background: none;
+            border: 1.5px solid #ccc;
+            border-radius: 16px;
+            padding: 0.3rem 0.7rem;
+            font-size: 0.82rem;
+            cursor: pointer;
+            color: #555;
+            transition: all 0.15s;
+        }
+
+        .filter-btn:hover { border-color: #999; }
+        .filter-btn.active { background: #1a5276; color: white; border-color: #1a5276; }
+
         .article-card {
             background: white;
             border-radius: 8px;
             padding: 1.5rem;
             margin-bottom: 1.2rem;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid transparent;
         }
+
+        .article-card.relevancy-1 { border-left-color: #bbb; }
+        .article-card.relevancy-2 { border-left-color: #7fb3d8; }
+        .article-card.relevancy-3 { border-left-color: #f0ad4e; }
+        .article-card.relevancy-4 { border-left-color: #e67e22; }
+        .article-card.relevancy-5 { border-left-color: #e74c3c; }
+
+        .article-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+        }
+
+        .relevancy-badge {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.7rem;
+            height: 1.7rem;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+            margin-top: 0.1rem;
+        }
+
+        .relevancy-1 .relevancy-badge { background: #bbb; }
+        .relevancy-2 .relevancy-badge { background: #7fb3d8; }
+        .relevancy-3 .relevancy-badge { background: #f0ad4e; }
+        .relevancy-4 .relevancy-badge { background: #e67e22; }
+        .relevancy-5 .relevancy-badge { background: #e74c3c; }
 
         .article-card h2 {
             font-size: 1.15rem;
@@ -66,14 +137,100 @@
             margin-bottom: 0.7rem;
         }
 
+        .tldr {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: #1a5276;
+            margin-bottom: 0.5rem;
+        }
+
         .summary {
             font-size: 0.95rem;
             color: #444;
         }
 
+        .background {
+            margin-top: 0.6rem;
+            padding: 0.5rem 0.7rem;
+            background: #f0f4f8;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .background-label {
+            font-weight: 600;
+            color: #1a5276;
+        }
+
         .no-summary {
             font-style: italic;
             color: #999;
+        }
+
+        .traktanden {
+            margin-top: 0.8rem;
+        }
+
+        .traktanden-label {
+            font-weight: 600;
+            color: #1a5276;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .traktandum-item {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 0.6rem 0.8rem;
+            margin-bottom: 0.5rem;
+            background: #fafafa;
+        }
+
+        .traktandum-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .traktandum-relevanz {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.4rem;
+            height: 1.4rem;
+            border-radius: 50%;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .traktandum-relevanz.rel-1 { background: #bbb; }
+        .traktandum-relevanz.rel-2 { background: #7fb3d8; }
+        .traktandum-relevanz.rel-3 { background: #f0ad4e; }
+        .traktandum-relevanz.rel-4 { background: #e67e22; }
+        .traktandum-relevanz.rel-5 { background: #e74c3c; }
+
+        .traktandum-titel {
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: #333;
+        }
+
+        .traktandum-tldr {
+            font-size: 0.84rem;
+            color: #1a5276;
+            font-weight: 500;
+            margin-bottom: 0.2rem;
+            padding-left: 1.9rem;
+        }
+
+        .traktandum-summary {
+            font-size: 0.84rem;
+            color: #555;
+            padding-left: 1.9rem;
         }
 
         .actions {
@@ -97,6 +254,28 @@
             background: #154360;
         }
 
+        .date-separator {
+            display: flex;
+            align-items: center;
+            margin: 2rem 0 1rem;
+            gap: 1rem;
+        }
+
+        .date-separator::before,
+        .date-separator::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #ccc;
+        }
+
+        .date-separator span {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+        }
+
         .empty {
             text-align: center;
             padding: 4rem 1rem;
@@ -109,6 +288,8 @@
             font-size: 0.8rem;
             color: #aaa;
         }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -118,20 +299,67 @@
     </header>
 
     <main>
-        <div class="actions">
-            <a href="/fetch">Jetzt neue Artikel abrufen</a>
+        <div class="toolbar">
+            <div class="actions">
+                <a href="/fetch">Jetzt neue Artikel abrufen</a>
+            </div>
+            {% if articles %}
+            <div class="filter-bar">
+                <span>Filter:</span>
+                <button class="filter-btn active" data-min="0" onclick="filterRelevancy(0, this)">Alle</button>
+                <button class="filter-btn" data-min="4" onclick="filterRelevancy(4, this)">Relevant (4+)</button>
+                <button class="filter-btn" data-min="5" onclick="filterRelevancy(5, this)">Sehr relevant (5)</button>
+            </div>
+            {% endif %}
         </div>
 
         {% if articles %}
+            {% set current_date = namespace(value='') %}
             {% for article in articles %}
-            <article class="article-card">
-                <h2><a href="{{ article.url }}" target="_blank" rel="noopener">{{ article.title }}</a></h2>
+                {% if article.display_date != current_date.value %}
+                    {% set current_date.value = article.display_date %}
+                    <div class="date-separator" data-date-sep><span>{{ article.display_date_label }}</span></div>
+                {% endif %}
+            <article class="article-card relevancy-{{ article.relevancy or 0 }}" data-relevancy="{{ article.relevancy or 0 }}">
+                <div class="article-header">
+                    {% if article.relevancy %}
+                    <span class="relevancy-badge" title="Relevanz {{ article.relevancy }}/5">{{ article.relevancy }}</span>
+                    {% endif %}
+                    <h2><a href="{{ article.url }}" target="_blank" rel="noopener">{{ article.title }}</a></h2>
+                </div>
                 <div class="meta">
                     {% if article.published_date %}{{ article.published_date }} &middot; {% endif %}
                     Abgerufen: {{ article.fetched_at[:10] }}
                 </div>
                 {% if article.summary %}
+                    {% if article.tldr %}
+                    <div class="tldr">{{ article.tldr }}</div>
+                    {% endif %}
                     <div class="summary">{{ article.summary }}</div>
+                    {% if article.background_info %}
+                    <div class="background">
+                        <span class="background-label">Hintergrund:</span> {{ article.background_info }}
+                    </div>
+                    {% endif %}
+                    {% if article.traktanden %}
+                    <div class="traktanden">
+                        <div class="traktanden-label">Stadtratsbeschl&uuml;sse:</div>
+                        {% for t in article.traktanden %}
+                        <div class="traktandum-item">
+                            <div class="traktandum-header">
+                                <span class="traktandum-relevanz rel-{{ t.relevanz or 0 }}" title="Relevanz {{ t.relevanz or 0 }}/5">{{ t.relevanz or '?' }}</span>
+                                <span class="traktandum-titel">{{ t.titel }}</span>
+                            </div>
+                            {% if t.tldr %}
+                            <div class="traktandum-tldr">{{ t.tldr }}</div>
+                            {% endif %}
+                            {% if t.zusammenfassung %}
+                            <div class="traktandum-summary">{{ t.zusammenfassung }}</div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 {% else %}
                     <div class="summary no-summary">Zusammenfassung wird erstellt&hellip;</div>
                 {% endif %}
@@ -148,5 +376,29 @@
     <footer>
         Quelle: <a href="https://www.uster.ch/aktuellesinformationen" style="color:#aaa">uster.ch/aktuellesinformationen</a>
     </footer>
+
+    <script>
+    function filterRelevancy(min, btn) {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.article-card').forEach(card => {
+            const rel = parseInt(card.dataset.relevancy) || 0;
+            card.classList.toggle('hidden', min > 0 && rel < min);
+        });
+        // Hide date separators that have no visible articles following them
+        document.querySelectorAll('[data-date-sep]').forEach(sep => {
+            let next = sep.nextElementSibling;
+            let hasVisible = false;
+            while (next && !next.hasAttribute('data-date-sep')) {
+                if (next.classList.contains('article-card') && !next.classList.contains('hidden')) {
+                    hasVisible = true;
+                    break;
+                }
+                next = next.nextElementSibling;
+            }
+            sep.classList.toggle('hidden', !hasVisible);
+        });
+    }
+    </script>
 </body>
 </html>

@@ -8,6 +8,9 @@ get the full text.
 
 import logging
 import re
+
+import fitz  # pymupdf
+import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 from database import article_exists, insert_article
@@ -24,10 +27,10 @@ def _extract_article_links(page) -> list[dict]:
         () => {
             const results = [];
             // Look for links that point to /aktuellesinformationen/{id}
-            const anchors = document.querySelectorAll('a[href*="/aktuellesinformationen/"]');
+            const anchors = document.querySelectorAll('a[href*="/_rte/information/"]');
             for (const a of anchors) {
                 const href = a.getAttribute('href');
-                if (href && /\\/aktuellesinformationen\\/\\d+/.test(href)) {
+                if (href && /\\/_rte\\/information\\/\\d+/.test(href)) {
                     const title = a.textContent.trim();
                     if (title) {
                         results.push({href, title});
@@ -46,6 +49,7 @@ def _extract_article_content(page) -> dict:
         () => {
             // Try common content selectors used by i-CMS/CityWeb
             const selectors = [
+                '.box2',
                 '.mod-newsdetail',
                 '.mod-detail',
                 'article',
@@ -98,8 +102,173 @@ def _extract_article_content(page) -> dict:
 
 def _source_id_from_url(url: str) -> str | None:
     """Extract the numeric article ID from the URL."""
-    match = re.search(r"/aktuellesinformationen/(\d+)", url)
+    match = re.search(r"/_rte/information/(\d+)", url)
     return match.group(1) if match else None
+
+
+def _is_stadtratsbeschluesse(title: str) -> bool:
+    """Check if an article is a Stadtratsbeschlüsse listing."""
+    return title.lower().startswith("stadtratsbeschlüsse der sitzung")
+
+
+def _extract_beschluesse_links(page) -> list[str]:
+    """Extract links to /beschluessestadtrat/ pages from the current page."""
+    links = page.evaluate("""
+        () => {
+            const results = [];
+            const anchors = document.querySelectorAll('a[href*="/beschluessestadtrat/"]');
+            for (const a of anchors) {
+                const href = a.getAttribute('href');
+                if (href) results.push(href);
+            }
+            return [...new Set(results)];
+        }
+    """)
+    return links
+
+
+def _extract_traktanden(page) -> list[dict]:
+    """Extract Traktanden items from a Beschlüsse page.
+
+    Each item has 'title', 'description', and 'pdf_url' keys.
+    Falls back to returning the full page text as a single item if
+    structured extraction fails.
+    """
+    items = page.evaluate("""
+        () => {
+            const items = [];
+            // Find the Traktanden heading
+            const headings = document.querySelectorAll('h2, h3');
+            let traktandenSection = null;
+            for (const h of headings) {
+                if (h.textContent.trim().toLowerCase().includes('traktand')) {
+                    traktandenSection = h;
+                    break;
+                }
+            }
+
+            if (traktandenSection) {
+                // Walk siblings after the heading, collecting items
+                let el = traktandenSection.nextElementSibling;
+                while (el) {
+                    // Stop at the next major heading
+                    if (el.tagName === 'H2') break;
+
+                    const text = el.innerText ? el.innerText.trim() : '';
+                    if (text.length > 5) {
+                        // Look for PDF links in this element
+                        let pdfUrl = null;
+                        const pdfLink = el.querySelector('a[href*="/_doc/"]') || el.querySelector('a[href$=".pdf"]');
+                        if (pdfLink) {
+                            pdfUrl = pdfLink.getAttribute('href');
+                        }
+
+                        // Try to split into title and description
+                        const lines = text.split('\\n').map(l => l.trim()).filter(l => l);
+                        const title = lines[0] || text;
+                        const description = lines.slice(1).join(' ');
+
+                        items.push({title, description, pdf_url: pdfUrl});
+                    }
+                    el = el.nextElementSibling;
+                }
+            }
+
+            // Fallback: if no structured items found, look for any list items
+            if (items.length === 0) {
+                const listItems = document.querySelectorAll('li');
+                for (const li of listItems) {
+                    const text = li.innerText ? li.innerText.trim() : '';
+                    if (text.length > 10) {
+                        let pdfUrl = null;
+                        const pdfLink = li.querySelector('a[href*="/_doc/"]') || li.querySelector('a[href$=".pdf"]');
+                        if (pdfLink) pdfUrl = pdfLink.getAttribute('href');
+                        items.push({title: text, description: '', pdf_url: pdfUrl});
+                    }
+                }
+            }
+
+            return items;
+        }
+    """)
+    return items
+
+
+def _extract_pdf_text(url: str) -> str:
+    """Download a PDF and extract its text content. Returns empty string on failure."""
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        doc = fitz.open(stream=resp.content, filetype="pdf")
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        doc.close()
+        return text.strip()
+    except Exception:
+        logger.warning("Failed to extract PDF from %s", url, exc_info=True)
+        return ""
+
+
+def _enrich_stadtratsbeschluesse(page, original_text: str) -> str:
+    """Follow Beschlüsse links, extract Traktanden and PDF content.
+
+    Returns enriched text with structured markers for each Traktandum.
+    """
+    beschluesse_links = _extract_beschluesse_links(page)
+    if not beschluesse_links:
+        logger.info("No beschluesse links found, keeping original text")
+        return original_text
+
+    sections = [original_text, "\n\n--- Stadtratsbeschlüsse Detail ---\n"]
+    traktandum_num = 0
+
+    for link in beschluesse_links:
+        full_url = link if link.startswith("http") else BASE_URL + link
+        logger.info("Following beschluesse link: %s", full_url)
+
+        try:
+            page.goto(full_url, wait_until="networkidle", timeout=20000)
+            page.wait_for_timeout(2000)
+        except PlaywrightTimeout:
+            logger.warning("Timeout loading beschluesse page %s", full_url)
+            continue
+        except Exception:
+            logger.warning("Error loading beschluesse page %s", full_url, exc_info=True)
+            continue
+
+        traktanden = _extract_traktanden(page)
+
+        if not traktanden:
+            # Fallback: grab whatever text is on the page
+            fallback_text = page.evaluate("() => document.body.innerText.trim()")
+            if fallback_text:
+                traktandum_num += 1
+                sections.append(f"\n### Traktandum {traktandum_num}: (Unstrukturiert)\n{fallback_text}")
+            continue
+
+        for item in traktanden:
+            traktandum_num += 1
+            title = item.get("title", "Ohne Titel")
+            description = item.get("description", "")
+            pdf_url = item.get("pdf_url")
+
+            section_parts = [f"\n### Traktandum {traktandum_num}: {title}"]
+            if description:
+                section_parts.append(description)
+
+            if pdf_url:
+                pdf_full_url = pdf_url if pdf_url.startswith("http") else BASE_URL + pdf_url
+                pdf_text = _extract_pdf_text(pdf_full_url)
+                if pdf_text:
+                    section_parts.append(f"\n[PDF-Inhalt]\n{pdf_text}")
+
+            sections.append("\n".join(section_parts))
+
+    if traktandum_num == 0:
+        return original_text
+
+    return "\n".join(sections)
 
 
 def scrape_news() -> int:
@@ -158,6 +327,10 @@ def scrape_news() -> int:
                 if len(text) < 20:
                     logger.warning("Article %s has very little text, skipping", source_id)
                     continue
+
+                if _is_stadtratsbeschluesse(title):
+                    logger.info("Detected Stadtratsbeschlüsse article, enriching: %s", title[:60])
+                    text = _enrich_stadtratsbeschluesse(page, text)
 
                 insert_article(source_id, full_url, title, text, date)
                 new_count += 1

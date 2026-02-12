@@ -26,11 +26,20 @@ def init_db():
             title TEXT NOT NULL,
             original_text TEXT NOT NULL,
             summary TEXT,
+            tldr TEXT,
+            relevancy INTEGER,
+            background_info TEXT,
             published_date TEXT,
             fetched_at TEXT NOT NULL,
             summarized_at TEXT
         )
     """)
+    # Migrate existing DBs: add columns if they don't exist
+    for col, coltype in [("tldr", "TEXT"), ("relevancy", "INTEGER"), ("background_info", "TEXT"), ("traktanden_json", "TEXT")]:
+        try:
+            conn.execute(f"ALTER TABLE articles ADD COLUMN {col} {coltype}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.commit()
     conn.close()
 
@@ -64,11 +73,13 @@ def get_unsummarized_articles() -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def save_summary(article_id: int, summary: str):
+def save_summary(article_id: int, summary: str, tldr: str | None = None,
+                  relevancy: int | None = None, background_info: str | None = None,
+                  traktanden_json: str | None = None):
     conn = get_connection()
     conn.execute(
-        "UPDATE articles SET summary = ?, summarized_at = ? WHERE id = ?",
-        (summary, datetime.utcnow().isoformat(), article_id),
+        "UPDATE articles SET summary = ?, tldr = ?, relevancy = ?, background_info = ?, traktanden_json = ?, summarized_at = ? WHERE id = ?",
+        (summary, tldr, relevancy, background_info, traktanden_json, datetime.utcnow().isoformat(), article_id),
     )
     conn.commit()
     conn.close()
@@ -77,8 +88,9 @@ def save_summary(article_id: int, summary: str):
 def get_all_articles(limit: int = 50) -> list[dict]:
     conn = get_connection()
     rows = conn.execute(
-        """SELECT id, source_id, url, title, original_text, summary, published_date, fetched_at, summarized_at
-           FROM articles ORDER BY fetched_at DESC LIMIT ?""",
+        """SELECT id, source_id, url, title, original_text, summary, tldr, relevancy, background_info,
+                  traktanden_json, published_date, fetched_at, summarized_at
+           FROM articles ORDER BY COALESCE(published_date, fetched_at) DESC, fetched_at DESC LIMIT ?""",
         (limit,),
     ).fetchall()
     conn.close()
