@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      - TZ=Europe/Zurich
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./data:/app/data
