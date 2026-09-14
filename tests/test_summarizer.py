@@ -76,7 +76,7 @@ def test_skips_already_summarized(mock_anthropic_cls):
     mock_client.messages.create.assert_not_called()
 
 
-@patch.dict("os.environ", {}, clear=True)
+@patch.dict("os.environ", {"LLAMA_CPP_URL": ""}, clear=True)
 def test_returns_zero_without_api_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     insert_article("nokey", "https://example.com/nokey", "Title", "Text")
@@ -117,6 +117,126 @@ def test_handles_api_error_gracefully(mock_anthropic_cls):
 
     assert count == 0
     assert len(get_unsummarized_articles()) == 1
+
+
+def _make_llama_response(text):
+    resp = MagicMock()
+    resp.json.return_value = {"choices": [{"message": {"content": text}}]}
+    resp.raise_for_status.return_value = None
+    return resp
+
+
+@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key", "LLAMA_CPP_URL": "http://llama.test:11435"})
+@patch("summarizer.requests.post")
+@patch("summarizer.anthropic.Anthropic")
+def test_falls_back_to_llama_on_claude_error(mock_anthropic_cls, mock_post):
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = Exception("API overloaded")
+    mock_anthropic_cls.return_value = mock_client
+    mock_post.return_value = _make_llama_response(
+        _json_response(tldr="Lokal.", relevancy=3, summary="Lokal zusammengefasst.")
+    )
+
+    insert_article("fb1", "https://example.com/fb1", "Neue Öffnungszeiten", "Inhalt")
+
+    count = summarize_articles()
+
+    assert count == 1
+    assert mock_post.call_args[0][0] == "http://llama.test:11435/v1/chat/completions"
+    payload = mock_post.call_args[1]["json"]
+    assert payload["messages"][0] == {"role": "system", "content": SYSTEM_PROMPT}
+    assert "Neue Öffnungszeiten" in payload["messages"][1]["content"]
+    # Doubled budget, and thinking off so reasoning models still fill `content`.
+    assert payload["max_tokens"] == 1600
+    assert payload["chat_template_kwargs"] == {"enable_thinking": False}
+
+    articles = get_all_articles()
+    assert articles[0]["summary"] == "Lokal zusammengefasst."
+    assert articles[0]["tldr"] == "Lokal."
+
+
+@patch.dict("os.environ", {"LLAMA_CPP_URL": "http://llama.test:11435"}, clear=True)
+@patch("summarizer.requests.post")
+def test_uses_llama_when_api_key_missing(mock_post):
+    mock_post.return_value = _make_llama_response(_json_response(summary="Ohne Key."))
+
+    insert_article("fb2", "https://example.com/fb2", "Titel", "Inhalt")
+
+    count = summarize_articles()
+
+    assert count == 1
+    mock_post.assert_called_once()
+    assert get_all_articles()[0]["summary"] == "Ohne Key."
+
+
+@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key", "LLAMA_CPP_URL": "http://llama.test:11435"})
+@patch("summarizer.requests.post")
+@patch("summarizer.anthropic.Anthropic")
+def test_no_fallback_when_claude_succeeds(mock_anthropic_cls, mock_post):
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _make_mock_response(_json_response())
+    mock_anthropic_cls.return_value = mock_client
+
+    insert_article("fb3", "https://example.com/fb3", "Titel", "Inhalt")
+
+    assert summarize_articles() == 1
+    mock_post.assert_not_called()
+
+
+@patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key", "LLAMA_CPP_URL": "http://llama.test:11435"})
+@patch("summarizer.requests.post")
+@patch("summarizer.anthropic.Anthropic")
+def test_both_backends_failing_leaves_article_unsummarized(mock_anthropic_cls, mock_post):
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = Exception("API error")
+    mock_anthropic_cls.return_value = mock_client
+    mock_post.side_effect = Exception("connection refused")
+
+    insert_article("fb4", "https://example.com/fb4", "Titel", "Inhalt")
+
+    count = summarize_articles()
+
+    assert count == 0
+    assert len(get_unsummarized_articles()) == 1
+
+
+@patch.dict("os.environ", {"LLAMA_CPP_URL": "http://llama.test:11435"}, clear=True)
+@patch("summarizer.requests.post")
+def test_empty_llama_content_is_not_saved(mock_post):
+    """A reasoning model can return empty content — that must not become an empty summary."""
+    resp = MagicMock()
+    resp.json.return_value = {
+        "choices": [{
+            "finish_reason": "length",
+            "message": {"role": "assistant", "content": "", "reasoning_content": "denkt nach..."},
+        }]
+    }
+    resp.raise_for_status.return_value = None
+    mock_post.return_value = resp
+
+    insert_article("fb5", "https://example.com/fb5", "Titel", "Inhalt")
+
+    count = summarize_articles()
+
+    assert count == 0
+    assert len(get_unsummarized_articles()) == 1
+
+
+@patch.dict("os.environ", {"LLAMA_CPP_URL": "http://llama.test:11435"}, clear=True)
+@patch("summarizer.requests.post")
+def test_llama_stadtrat_token_budget(mock_post):
+    mock_post.return_value = _make_llama_response(
+        json.dumps({"tldr": "X", "relevancy": 3, "summary": "S", "background": None, "traktanden": []})
+    )
+
+    insert_article("fb6", "https://example.com/fb6",
+                   "Stadtratsbeschlüsse der Sitzung vom 1. Januar 2026", "Inhalt")
+
+    summarize_articles()
+
+    payload = mock_post.call_args[1]["json"]
+    assert payload["messages"][0]["content"] == STADTRAT_SYSTEM_PROMPT
+    assert payload["max_tokens"] == 4000
 
 
 class TestParseStructuredResponse:

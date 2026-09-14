@@ -35,7 +35,7 @@ Four-module pipeline, all pure Python with SQLite storage:
 
 - **`scraper.py`** — Playwright-based scraper. Loads the JS-rendered uster.ch listing page, extracts article links matching `/aktuellesinformationen/{id}`, visits each article page, and extracts content via JS DOM evaluation (tries several CSS selectors for i-CMS/CityWeb). Articles are deduplicated by `source_id` (the numeric ID from the URL). **Stadtratsbeschlüsse detection:** articles with titles starting "Stadtratsbeschlüsse der Sitzung" are enriched by following `/beschluessestadtrat/` links, extracting Traktanden items, and downloading linked PDFs (via `pymupdf`/`fitz`) to include their text content.
 
-- **`summarizer.py`** — Sends unsummarized articles to Claude (`claude-sonnet-4-20250514`) with a German-language system prompt. Truncates articles >15k chars. Stores summaries back to the DB. **Stadtratsbeschlüsse** articles use a specialized prompt (`STADTRAT_SYSTEM_PROMPT`) that produces per-Traktandum summaries with individual relevancy scores, stored as `traktanden_json`. Uses higher limits: 40k char truncation and 2000 max_tokens.
+- **`summarizer.py`** — Sends unsummarized articles to Claude (`claude-sonnet-4-20250514`) with a German-language system prompt. Truncates articles >15k chars. Stores summaries back to the DB. **Stadtratsbeschlüsse** articles use a specialized prompt (`STADTRAT_SYSTEM_PROMPT`) that produces per-Traktandum summaries with individual relevancy scores, stored as `traktanden_json`. Uses higher limits: 40k char truncation and 2000 max_tokens. **Fallback:** if the Claude call raises (or `ANTHROPIC_API_KEY` is missing), the same prompt is sent to a local llama.cpp server at `LLAMA_CPP_URL` (default `http://100.64.0.1:11435`) via its OpenAI-compatible `/v1/chat/completions` endpoint, using plain `requests`. The request sends `chat_template_kwargs: {"enable_thinking": false}` and doubles `max_tokens` — the local server may serve a reasoning model, which otherwise spends the entire budget on `reasoning_content` and returns empty `content`. Empty content raises rather than saving a blank summary. Setting `LLAMA_CPP_URL=""` disables the fallback; the test suite disables it via an autouse `conftest.py` fixture so tests never hit the network.
 
 - **`database.py`** — SQLite layer. DB lives at `data/news.db` (overridable via `NEWS_DB_PATH` env var). Single `articles` table; deduplication via `source_id UNIQUE`. Includes auto-migration for `traktanden_json TEXT` column.
 
@@ -49,4 +49,4 @@ Tests use pytest with a `conftest.py` fixture that monkeypatches `database.DB_PA
 
 ## Environment
 
-Requires `ANTHROPIC_API_KEY` in `.env` (loaded via python-dotenv). See `.env.example`.
+Requires `ANTHROPIC_API_KEY` in `.env` (loaded via python-dotenv). Optional: `LLAMA_CPP_URL` / `LLAMA_CPP_MODEL` for the local fallback, `NEWS_DB_PATH` for the DB location. See `.env.example`.

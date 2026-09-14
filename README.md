@@ -17,6 +17,11 @@ Create a `.env` file (see `.env.example`):
 ANTHROPIC_API_KEY=your-api-key-here
 ```
 
+If the Claude API is unavailable (missing key, outage, rate limit), summarization falls
+back to a local llama.cpp server via its OpenAI-compatible `/v1/chat/completions`
+endpoint. It defaults to `http://100.64.0.1:11435`; override with `LLAMA_CPP_URL`
+(and `LLAMA_CPP_MODEL`), or set `LLAMA_CPP_URL=` to disable the fallback.
+
 ## Run
 
 ```bash
