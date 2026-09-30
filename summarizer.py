@@ -13,7 +13,7 @@ from database import get_unsummarized_articles, save_summary
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-sonnet-5"
 
 # Fallback used when the Claude API is unavailable (no key, outage, rate limit, ...).
 # Set LLAMA_CPP_URL to "" to disable the fallback entirely.
